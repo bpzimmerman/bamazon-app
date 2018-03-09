@@ -64,12 +64,12 @@ var Customer = function(){
             that.finish(answer.dept);
           } else {
             // otherwise calls the function to display the products in the selected department
-            that.departmentDisplay(answer.dept);
+            that.productDisplay(answer.dept);
           }
         });
     });
   };
-  this.departmentDisplay = function(dept){
+  this.productDisplay = function(dept){
     // build the MySQL query based on whether "All" or a specific department was selected
     var query = "";
     if (dept === "All"){
@@ -94,7 +94,7 @@ var Customer = function(){
       });
       // creates and displays the resulting table
       var output = that.table.table(dataTable);
-      console.log(output);
+      console.log("\n" + output);
       // calls function select what the user wants to buy (the results from the select query are sent as an arguement)
       that.productToBuy(res);
     });
@@ -126,14 +126,16 @@ var Customer = function(){
           message: "How many would you like to purchase?",
           // only askes this question if neither "None of these" nor "Exit" is selected
           when: function(sel){
-            return sel.buy != "None of these" && sel.buy != "Exit"
+            return sel.buy != "None of these" && sel.buy != "Exit";
           },
           // validates that the value entered is a number
           validate: function(value){
-            if (isNaN(parseFloat(value)) === false){
+            if (isNaN(parseFloat(value)) === false &&
+                parseFloat(value) > 0 &&
+                parseFloat(value) === parseInt(value)){
               return true;
             } else {
-              console.log(that.chalk.red(" This value must be a number!"));
+              console.log(that.chalk.red(" This value must be a positive integer!"));
               return false;
             };
           }
@@ -156,23 +158,25 @@ var Customer = function(){
               productSales = item.product_sales
             };
           });
+          // makes the quantity entered a number
+          var ansQty = parseFloat(answer.quantity);
           // verifys that the requested quantity is less than the available quantity from the results argument
-          if (answer.quantity < availQty){
+          if (ansQty < availQty){
             // sets the header for the purchase display
             var invoiceHeader = ["Product", "Qty Purchased", "Unit Price", "Total"];
             // creates and formats the data variables for the purchase display
             var formattedUnitPrice = that.accounting.formatMoney(unitPrice);
-            var total = unitPrice * answer.quantity;
+            var total = unitPrice * ansQty;
             var formattedTotal = that.accounting.formatMoney(total);
             // creates the array to hold the data variables for the purchase display
-            var invoiceData = [answer.buy, answer.quantity, formattedUnitPrice, formattedTotal];
+            var invoiceData = [answer.buy, ansQty, formattedUnitPrice, formattedTotal];
             // creates and displays the purchase display table
             var invoice = [];
             invoice.push(invoiceHeader, invoiceData);
             var invoiceTable = that.table.table(invoice);
-            console.log(invoiceTable);
+            console.log("\n" + invoiceTable);
             // creates a string variable that will be sent to the database for evaluation
-            var sql = "UPDATE ?? SET ?? = ?? - " + answer.quantity + ", ?? = ?? + " + total + " WHERE ?? = ?"
+            var sql = "UPDATE ?? SET ?? = ?? - " + ansQty + ", ?? = ?? + " + total + " WHERE ?? = ?"
             // array variable containing the escapes
             var inserts = ['products', 'stock_quantity', 'stock_quantity', 'product_sales', 'product_sales', 'product_name', answer.buy];
             // update the sql variable with the escapes in the correct format
@@ -190,7 +194,9 @@ var Customer = function(){
   this.updateProduct = function(str) {
     // updates the database with the information in the arguement object
     var query = this.connection.query(
-      str, function(err, res) {}
+      str, function(err, res) {
+        if (err) throw err;
+      }
     );
     var that = this;
     this.inquirer
