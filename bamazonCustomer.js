@@ -29,7 +29,7 @@ var Customer = function(){
   // function asking the user what department's products he/she would like to display
   this.initial = function() {
     var that = this;
-    this.connection.query("SELECT * FROM products", function(err, results) {
+    this.connection.query("SELECT * FROM departments", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -38,18 +38,17 @@ var Customer = function(){
             type: "list",
             message: "What department's products would you like to display?",
             choices: function() {
+              console.log(results);
               var dptArray = [];
-              // checks to make sure there are products in the database
+              // checks to make sure there are departments in the database
               if (results.length === 0){
-                dptArray.push("No Products");
+                dptArray.push("No Departments");
               } else {
                 // pushes an option to display all the products in the database
                 dptArray.push("All", new that.inquirer.Separator());
-                // loop that does through the database but only pushes department names that are not already in the choice array
+                // loop that puts the departments in an array
                 for (var i = 0; i < results.length; i += 1) {
-                  if (dptArray.indexOf(results[i].department_name) === -1) {
-                    dptArray.push(results[i].department_name);
-                  }
+                  dptArray.push(results[i].department);
                 }
               };
               // pushes an option to exit the application
@@ -60,7 +59,7 @@ var Customer = function(){
         ])
         .then(function(answer) {
           // calls the finish function if "Exit" or "No Products" were selected
-          if (answer.dept === "Exit" || answer.dept === "No Products"){
+          if (answer.dept === "Exit" || answer.dept === "No Departments"){
             that.finish(answer.dept);
           } else {
             // otherwise calls the function to display the products in the selected department
@@ -71,11 +70,9 @@ var Customer = function(){
   };
   this.productDisplay = function(dept){
     // build the MySQL query based on whether "All" or a specific department was selected
-    var query = "";
-    if (dept === "All"){
-      query = "SELECT * FROM products"
-    } else {
-      query = "SELECT * FROM products WHERE department_name = '" + dept + "'";
+    var query = "SELECT * FROM products";
+    if (dept != "All"){
+      query += ` WHERE department_name = "${dept}"`;
     };
     var that = this;
     this.connection.query(query, function(err, res) {
@@ -123,27 +120,28 @@ var Customer = function(){
         {
           name: "quantity",
           type: "input",
-          message: "How many would you like to purchase?",
+          message: "How many would you like to purchase (Cancel will exit)?",
+          default: "Cancel",
           // only askes this question if neither "None of these" nor "Exit" is selected
           when: function(sel){
             return sel.buy != "None of these" && sel.buy != "Exit";
           },
           // validates that the value entered is a number
           validate: function(value){
-            if (isNaN(parseFloat(value)) === false &&
+            if ((isNaN(parseFloat(value)) === false &&
                 parseFloat(value) > 0 &&
-                parseFloat(value) === parseInt(value)){
+                parseFloat(value) === parseInt(value)) || value.trim().toLowerCase() === "cancel"){
               return true;
             } else {
-              console.log(that.chalk.red(" This value must be a positive integer!"));
+              console.log(that.chalk.red(" This value must be either 'Cancel' or a positive integer!"));
               return false;
             };
           }
         }
       ])
       .then(function(answer) {
-        // calls the finish function if "None of these" or "Exit" were selected
-        if (answer.buy === "None of these" || answer.buy === "Exit"){
+        // calls the finish function if "None of these", "Exit", or "Cancel" was selected
+        if (answer.buy === "None of these" || answer.buy === "Exit" || answer.quantity.trim().toLowerCase() === "cancel"){
           that.finish(answer.buy);
         } else {
           // creates variables to store the values from the selected item
@@ -176,7 +174,7 @@ var Customer = function(){
             var invoiceTable = that.table.table(invoice);
             console.log("\n" + invoiceTable);
             // creates a string variable that will be sent to the database for evaluation
-            var sql = "UPDATE ?? SET ?? = ?? - " + ansQty + ", ?? = ?? + " + total + " WHERE ?? = ?"
+            var sql = `UPDATE ?? SET ?? = ?? - ${ansQty}, ?? = ?? + ${total} WHERE ?? = ?`
             // array variable containing the escapes
             var inserts = ['products', 'stock_quantity', 'stock_quantity', 'product_sales', 'product_sales', 'product_name', answer.buy];
             // update the sql variable with the escapes in the correct format

@@ -1,6 +1,7 @@
 var inquirer = require('inquirer');
 var Customer = require('./bamazonCustomer');
 var Manager = require('./bamazonManager');
+var Supervisor = require('./bamazonSupervisor');
 
 inquirer
   .prompt([
@@ -23,7 +24,8 @@ inquirer
         manager.begin();
         break;
       case "Supervisor":
-        console.log("\nSupervisor module under construction!");
+        var supervisor = new Supervisor();
+        supervisor.begin();
         break;
       case "Exit":
         console.log("\nGoodbye!");

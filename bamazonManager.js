@@ -26,6 +26,7 @@ var Manager = function(){
       that.menu();
     });
   };
+  // initial function that prompts the user for what he/she wants to do
   this.menu = function(){
     var that = this;
     this.inquirer
@@ -35,7 +36,7 @@ var Manager = function(){
           message: "What would you like to do?",
           name: "action",
           choices: ["View Products for Sale", "View Low Inventory", "Add to Inventory", "Add New Product", "Remove Product", new that.inquirer.Separator(), "Exit"],
-          default: "Customer"
+          default: "View Products for Sale"
         }
       ])
       .then(function(response){
@@ -60,9 +61,10 @@ var Manager = function(){
         };
       });
   };
+  // function to prompt the user for the department's he/she wants to display
   this.viewDepartments = function(){
     var that = this;
-    this.connection.query("SELECT * FROM products", function(err, results) {
+    this.connection.query("SELECT * FROM departments", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -78,11 +80,9 @@ var Manager = function(){
               } else {
                 // pushes an option to display all the products in the database
                 dptArray.push("All", new that.inquirer.Separator());
-                // loop that does through the database but only pushes department names that are not already in the choice array
+                // loop that puts the departments in an array
                 for (var i = 0; i < results.length; i += 1) {
-                  if (dptArray.indexOf(results[i].department_name) === -1) {
-                    dptArray.push(results[i].department_name);
-                  }
+                    dptArray.push(results[i].department);
                 }
               };
               // pushes an option to exit the application
@@ -110,7 +110,7 @@ var Manager = function(){
     data.forEach(function(item, index) {
       var row = [];
       var formattedPrice = cxt.accounting.formatMoney(item.price);
-      row.push(item.id, item.product_name, formattedPrice, item.stock_quantity);
+      row.push(item.id, item.product_name, item.department_name, formattedPrice, item.stock_quantity);
       dataTable.push(row);
     });
     // creates and displays the resulting table
@@ -119,17 +119,16 @@ var Manager = function(){
   };
   this.productDisplay = function(dept){
     // build the MySQL query based on whether "All" or a specific department was selected
-    var query = "";
-    if (dept === "All"){
-      query = "SELECT * FROM products"
-    } else {
-      query = "SELECT * FROM products WHERE department_name = '" + dept + "'";
+    var query = "SELECT * FROM products";
+    if (dept != "All"){
+      query += ` WHERE department_name = "${dept}"`;
     };
+    query += " ORDER BY department_name, id";
     var that = this;
     this.connection.query(query, function(err, res) {
       if (err) throw err;
       // create a header array for the display table
-      var headers = ["ID", "Product Name", "Price", "# Available"];
+      var headers = ["ID", "Product Name", "Department", "Price", "# Available"];
       // calls function to build and display the table
       that.tableDisplay(headers, res, that);
       // calls function select what the user wants to buy (the results from the select query are sent as an arguement)
@@ -137,7 +136,7 @@ var Manager = function(){
     });
   };
   this.viewLow = function() {
-    // build the MySQL query based on whether "All" or a specific department was selected
+    // build the MySQL query to get the products where the inventory is less than or equal to 5
     var query = "SELECT * FROM ?? WHERE ?? <= ?";
     var inserts = ["products", "stock_quantity", 5];
     query = this.mysql.format(query, inserts);
@@ -145,13 +144,14 @@ var Manager = function(){
     this.connection.query(query, function(err, res) {
       if (err) throw err;
       // create a header array for the display table
-      var headers = ["ID", "Product Name", "Price", "# Available"];
+      var headers = ["ID", "Product Name", "Department", "Price", "# Available"];
       // calls function to build and display the table
       that.tableDisplay(headers, res, that);
-      // calls function select what the user wants to buy (the results from the select query are sent as an arguement)
+      // calls initial function
       that.menu();
     });
   };
+  // function to add inventory to an existing product
   this.addInventory = function(){
     var that = this;
     this.connection.query("SELECT * FROM products", function(err, results) {
@@ -161,16 +161,17 @@ var Manager = function(){
           {
             name: "prodId",
             type: "input",
-            message: "Please enter the ID of the Item whose quantity you want to increase.",
+            message: "Please enter the ID of the Item whose quantity you want to increase (Cancel will exit).",
+            default: "Cancel",
             validate: function(value){
               var chkArray = [];
               results.forEach(function(item){
                 chkArray.push(item.id);
               });
-              if (chkArray.indexOf(parseFloat(value)) != -1){
+              if (chkArray.indexOf(parseFloat(value)) != -1 || value.trim().toLowerCase() === "cancel"){
                 return true;
               } else {
-                console.log(that.chalk.red(" That ID does not exist!"));
+                console.log(that.chalk.red(" That ID does not exist (Cancel will exit)!"));
                 return false;
               };
             }
@@ -178,29 +179,39 @@ var Manager = function(){
           {
             name: "qtyIncrease",
             type: "input",
-            message: "How much inventory would you like to add?",
+            message: "How much inventory would you like to add (Cancel will exit)?",
+            default: "Cancel",
             validate: function(value){
-              if (isNaN(parseFloat(value)) === false &&
+              if ((isNaN(parseFloat(value)) === false &&
                   parseFloat(value) > 0 &&
-                  parseFloat(value) === parseInt(value)){
+                  parseFloat(value) === parseInt(value)) ||
+                  value.trim().toLowerCase() === "cancel"){
                 return true;
               } else {
-                console.log(that.chalk.red(" This value must be a positive integer!"));
+                console.log(that.chalk.red(" This value must be a positive integer (Cancel will exit)!"));
                 return false;
               };
+            },
+            when: function(ans){
+              return ans.prodId.trim().toLowerCase() != "cancel";
             }
           }
         ]).then(function(answer){
-          // makes the quantity entered a number
-          var ansQty = parseFloat(answer.qtyIncrease);
-          // runs the function to update the database
-          that.updateInventory(answer.prodId, ansQty);
+          // check if the user entered cancel
+          if (answer.prodId.trim().toLowerCase() === "cancel" || answer.qtyIncrease.trim().toLowerCase() === "cancel"){
+            that.finish("cancel");
+          } else {
+            // makes the quantity entered a number
+            var ansQty = parseFloat(answer.qtyIncrease);
+            // runs the function to update the database
+            that.updateInventory(answer.prodId, ansQty);
+          };
         });
     });
   };
   this.updateInventory = function(itemId, updateQty){
     // builds the update query string
-    var queryStr = "UPDATE ?? SET ?? = ?? + " + updateQty + " WHERE ?? = ?";
+    var queryStr = `UPDATE ?? SET ?? = ?? + ${updateQty} WHERE ?? = ?`;
     // array variable containing the escapes
     var inserts = ['products', 'stock_quantity', 'stock_quantity', 'id', itemId];
     // update the query variable with the escapes in the correct format
@@ -218,7 +229,7 @@ var Manager = function(){
     // update the query variable with the escapes in the correct format
     selQueryStr = this.mysql.format(selQueryStr, selInserts);
     var that = this;
-    // calls retreives the information from the database
+    // retreives the information from the database
     this.connection.query(selQueryStr, function(err, results) {
       if (err) throw err;
       var increaseHeader = ["ID", "Item Name", "Qty Added", "Stocked Qty"];
@@ -229,12 +240,14 @@ var Manager = function(){
       increaseArray.push(increaseHeader, increaseData);
       var increaseTable = that.table.table(increaseArray);
       console.log("\n" + increaseTable);
+      // calls the initial function
       that.menu();
     });
   };
+  // function to add a new product
   this.addProduct = function(){
     var that = this;
-    this.connection.query("SELECT * FROM products", function(err, results) {
+    this.connection.query("SELECT * FROM departments", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -262,11 +275,9 @@ var Manager = function(){
               if (results.length === 0){
                 dptArray.push("No Products");
               } else {
-                // loop that does through the database but only pushes department names that are not already in the choice array
+                // loop that puts the departments in an array
                 for (var i = 0; i < results.length; i += 1) {
-                  if (dptArray.indexOf(results[i].department_name) === -1) {
-                    dptArray.push(results[i].department_name);
-                  }
+                    dptArray.push(results[i].department);
                 }
               };
               // pushes an option to cancel
@@ -274,31 +285,31 @@ var Manager = function(){
               return dptArray;
             },
             when: function(sel){
-              return sel.item != "Cancel";
+              return sel.item.trim().toLowerCase() != "cancel";
             }
           },
           {
             name: "price",
             type: "input",
-            message: "Please enter a price for the new Item?",
-            default: 0.00,
+            message: "Please enter a price for the new Item.",
+            default: "Cancel",
             validate: function(answer){
-              if (isNaN(parseFloat(answer)) === false &&
-                  parseFloat(answer) >= 0){
+              if ((isNaN(parseFloat(answer)) === false &&
+                  parseFloat(answer) >= 0) || answer.trim().toLowerCase() === "cancel"){
                 return true;
               } else {
-                console.log(that.chalk.red(" This value must be a number!"));
+                console.log(that.chalk.red(" This value must be either 'Cancel' or a non-negative number!"));
                 return false;
               };
             },
             when: function(sel){
-              return sel.item != "Cancel" && sel.dept != "Cancel" && sel.dept != "No Products";
+              return sel.item.trim().toLowerCase() != "cancel" && sel.dept != "Cancel" && sel.dept != "No Products";
             }
           }
         ])
         .then(function(answer) {
-          // calls the finish function if "Exit" or "No Products" were selected
-          if (answer.dept === "Cancel" || answer.dept === "No Products" || answer.item === "Cancel"){
+          // calls the finish function if "Cancel" or "No Products" were selected
+          if (answer.dept === "Cancel" || answer.dept === "No Products" || answer.item.trim().toLowerCase() === "cancel" || answer.price.trim().toLowerCase() === "cancel"){
             that.finish(answer.dept);
           } else {
             // otherwise calls the function to display the products in the selected department
@@ -327,6 +338,7 @@ var Manager = function(){
       }
     );
   };
+  // function to prompt the user for the item to be deleted
   this.removeProduct = function(){
     var that = this;
     this.connection.query("SELECT * FROM products", function(err, results) {
@@ -339,11 +351,13 @@ var Manager = function(){
             message: "Please enter the ID of the Item that you want to remove (Cancel will exit).",
             default: "Cancel",
             validate: function(value){
+              // puts the item ids from the database into an array
               var chkArray = [];
               results.forEach(function(item){
                 chkArray.push(item.id);
               });
-              if (chkArray.indexOf(parseFloat(value)) != -1 || value === "Cancel"){
+              // checks the value entered versus the item id array to make sure the id entered exists
+              if (chkArray.indexOf(parseFloat(value)) != -1 || value.trim().toLowerCase() === "cancel"){
                 return true;
               } else {
                 console.log(that.chalk.red(" That ID does not exist!"));
@@ -352,7 +366,7 @@ var Manager = function(){
             }
           }
         ]).then(function(answer){
-          if (answer.remId === "Cancel"){
+          if (answer.remId.trim().toLowerCase() === "cancel"){
             // runs the function to exit
             that.finish(answer.remId);
           } else {
@@ -362,6 +376,7 @@ var Manager = function(){
         });
     });
   };
+  // function to delete a product
   this.deleteProduct = function(delId){
     var that = this;
     this.connection.query(
@@ -373,8 +388,8 @@ var Manager = function(){
         }
       ],
       function(err, res) {
-        console.log("\nProduct ID: " + delId + " removed!\n");
-        // Call readProducts AFTER the DELETE completes
+        console.log(`\nProduct ID: ${delId} removed!\n`);
+        // call the initial function
         that.menu();
       }
     );
