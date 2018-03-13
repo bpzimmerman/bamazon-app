@@ -1,26 +1,13 @@
-var Supervisor = function(){
+var Supervisor = function(connection){
   // require the npm modules used in this application
   this.mysql = require("mysql");
   this.inquirer = require("inquirer");
   this.table = require("table");
   this.accounting = require("accounting");
   this.chalk = require("chalk");
-  // create the connection information for the sql database
-  this.connection = this.mysql.createConnection({
-    host: "localhost",
-    // the default port is 3306 - may need to change this for your machine
-    port: 3307,
-
-    // Your username
-    user: "root",
-
-    // Your password
-    password: "root",
-    database: "bamazon"
-  });
   this.begin = function(){
     var that = this;
-    this.connection.connect(function(err) {
+    connection.connect(function(err) {
       if (err) throw err;
       // run the initial function after the connection is made to prompt the user
       that.menu();
@@ -57,7 +44,7 @@ var Supervisor = function(){
     queryStr += "FROM departments LEFT JOIN products ON departments.department = products.department_name ";
     queryStr += "GROUP BY departments.department ORDER BY departments.department";
     var that = this;
-    this.connection.query(queryStr, function(err, res) {
+    connection.query(queryStr, function(err, res) {
       // create a header array for the display table
       var headers = ["Department Name", "Overhead Costs", "Product Sales", "Total Profit"];
       // calls function to build and display the table
@@ -84,9 +71,8 @@ var Supervisor = function(){
     console.log("\n" + output);
   };
   this.addDepartment = function() {
-    console.log("Add New Department is under construction!");
     var that = this;
-    this.connection.query("SELECT * FROM departments", function(err, results) {
+    connection.query("SELECT * FROM departments", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -96,8 +82,15 @@ var Supervisor = function(){
             message: "Please enter the name of the Department you wish to add (Cancel will exit).",
             default: "Cancel",
             validate: function(answer){
+              var chkArray = [];
+              results.forEach(function(item){
+                chkArray.push(item.department);
+              });
               if (answer.trim() === ""){
                 console.log(that.chalk.red(" Something must be entered for this value (Cancel will exit)!"));
+                return false;
+              } else if (chkArray.indexOf(answer.trim()) != -1){
+                console.log(that.chalk.red(" That department already exists (Cancel will exit)!"));
                 return false;
               } else {
                 return true;
@@ -137,7 +130,7 @@ var Supervisor = function(){
   this.insertDepartment = function(dept, over){
     var that = this;
     // update the database
-    var insertQuery = this.connection.query(
+    var insertQuery = connection.query(
       "INSERT INTO ?? SET ?",
       [
         "departments",
@@ -156,7 +149,7 @@ var Supervisor = function(){
   this.finish = function(arg) {
     // exits the application if the passed argument is "Exit", otherwise the application starts over
     if (arg === "Exit"){
-      this.connection.end();
+      connection.end();
     } else {
       this.menu();
     };

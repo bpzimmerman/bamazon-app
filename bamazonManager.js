@@ -1,26 +1,13 @@
-var Manager = function(){
+var Manager = function(connection){
   // require the npm modules used in this application
   this.mysql = require("mysql");
   this.inquirer = require("inquirer");
   this.table = require("table");
   this.accounting = require("accounting");
   this.chalk = require("chalk");
-  // create the connection information for the sql database
-  this.connection = this.mysql.createConnection({
-    host: "localhost",
-    // the default port is 3306 - may need to change this for your machine
-    port: 3307,
-
-    // Your username
-    user: "root",
-
-    // Your password
-    password: "root",
-    database: "bamazon"
-  });
   this.begin = function(){
     var that = this;
-    this.connection.connect(function(err) {
+    connection.connect(function(err) {
       if (err) throw err;
       // run the initial function after the connection is made to prompt the user
       that.menu();
@@ -64,7 +51,7 @@ var Manager = function(){
   // function to prompt the user for the department's he/she wants to display
   this.viewDepartments = function(){
     var that = this;
-    this.connection.query("SELECT * FROM departments", function(err, results) {
+    connection.query("SELECT * FROM departments", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -125,7 +112,7 @@ var Manager = function(){
     };
     query += " ORDER BY department_name, id";
     var that = this;
-    this.connection.query(query, function(err, res) {
+    connection.query(query, function(err, res) {
       if (err) throw err;
       // create a header array for the display table
       var headers = ["ID", "Product Name", "Department", "Price", "# Available"];
@@ -141,7 +128,7 @@ var Manager = function(){
     var inserts = ["products", "stock_quantity", 5];
     query = this.mysql.format(query, inserts);
     var that = this;
-    this.connection.query(query, function(err, res) {
+    connection.query(query, function(err, res) {
       if (err) throw err;
       // create a header array for the display table
       var headers = ["ID", "Product Name", "Department", "Price", "# Available"];
@@ -154,7 +141,7 @@ var Manager = function(){
   // function to add inventory to an existing product
   this.addInventory = function(){
     var that = this;
-    this.connection.query("SELECT * FROM products", function(err, results) {
+    connection.query("SELECT * FROM products", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -217,7 +204,7 @@ var Manager = function(){
     // update the query variable with the escapes in the correct format
     queryStr = this.mysql.format(queryStr, inserts);
     // update the database
-    var updateQuery = this.connection.query(
+    var updateQuery = connection.query(
       queryStr, function(err, res) {
         if (err) throw err;
       }
@@ -230,7 +217,7 @@ var Manager = function(){
     selQueryStr = this.mysql.format(selQueryStr, selInserts);
     var that = this;
     // retreives the information from the database
-    this.connection.query(selQueryStr, function(err, results) {
+    connection.query(selQueryStr, function(err, results) {
       if (err) throw err;
       var increaseHeader = ["ID", "Item Name", "Qty Added", "Stocked Qty"];
       // creates and formats the data variables for the update display
@@ -247,7 +234,7 @@ var Manager = function(){
   // function to add a new product
   this.addProduct = function(){
     var that = this;
-    this.connection.query("SELECT * FROM departments", function(err, results) {
+    connection.query("SELECT * FROM departments", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -321,7 +308,7 @@ var Manager = function(){
   this.insertProduct = function(prod, dept, amt){
     var that = this;
     // update the database
-    var insertQuery = this.connection.query(
+    var insertQuery = connection.query(
       "INSERT INTO ?? SET ?",
       [
         "products",
@@ -341,7 +328,7 @@ var Manager = function(){
   // function to prompt the user for the item to be deleted
   this.removeProduct = function(){
     var that = this;
-    this.connection.query("SELECT * FROM products", function(err, results) {
+    connection.query("SELECT * FROM products", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -379,7 +366,7 @@ var Manager = function(){
   // function to delete a product
   this.deleteProduct = function(delId){
     var that = this;
-    this.connection.query(
+    connection.query(
       "DELETE FROM ?? WHERE ?",
       [
         "products",
@@ -397,7 +384,7 @@ var Manager = function(){
   this.finish = function(arg) {
     // exits the application if the passed argument is "Exit", otherwise the application starts over
     if (arg === "Exit"){
-      this.connection.end();
+      connection.end();
     } else {
       this.menu();
     };

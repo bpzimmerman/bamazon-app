@@ -1,26 +1,14 @@
-var Customer = function(){
+var Customer = function(connection){
   // require the npm modules used in this application
   this.mysql = require("mysql");
   this.inquirer = require("inquirer");
   this.table = require("table");
   this.accounting = require("accounting");
   this.chalk = require("chalk");
-  // create the connection information for the sql database
-  this.connection = this.mysql.createConnection({
-    host: "localhost",
-    // the default port is 3306 - may need to change this for your machine
-    port: 3307,
-
-    // Your username
-    user: "root",
-
-    // Your password
-    password: "root",
-    database: "bamazon"
-  });
+  // function to initialize the connection
   this.begin = function(){
     var that = this;
-    this.connection.connect(function(err) {
+    connection.connect(function(err) {
       if (err) throw err;
       // run the initial function after the connection is made to prompt the user
       that.initial();
@@ -29,7 +17,7 @@ var Customer = function(){
   // function asking the user what department's products he/she would like to display
   this.initial = function() {
     var that = this;
-    this.connection.query("SELECT * FROM departments", function(err, results) {
+    connection.query("SELECT * FROM departments", function(err, results) {
       if (err) throw err;
       that.inquirer
         .prompt([
@@ -38,7 +26,6 @@ var Customer = function(){
             type: "list",
             message: "What department's products would you like to display?",
             choices: function() {
-              console.log(results);
               var dptArray = [];
               // checks to make sure there are departments in the database
               if (results.length === 0){
@@ -75,7 +62,7 @@ var Customer = function(){
       query += ` WHERE department_name = "${dept}"`;
     };
     var that = this;
-    this.connection.query(query, function(err, res) {
+    connection.query(query, function(err, res) {
       if (err) throw err;
       // create a header array for the display table
       var headers = ["ID", "Product Name", "Price", "# Available"];
@@ -191,7 +178,7 @@ var Customer = function(){
   };
   this.updateProduct = function(str) {
     // updates the database with the information in the arguement object
-    var query = this.connection.query(
+    var query = connection.query(
       str, function(err, res) {
         if (err) throw err;
       }
@@ -219,7 +206,7 @@ var Customer = function(){
   this.finish = function(arg) {
     // exits the application if the passed argument is "Exit", otherwise the application starts over
     if (arg === "Exit"){
-      this.connection.end();
+      connection.end();
     } else {
       this.initial();
     };
